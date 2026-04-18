@@ -1,16 +1,39 @@
 using UnityEngine;
-using System.Collections;
-using System.Collections.Generic;
+using UnityEngine.UI;
 
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement")]
-    public float movespeed;
+    public float walkSpeed = 7f;
+    public float sprintSpeed = 12f;
+    public float groundDrag = 5f;
 
-    public float groundDrag;
+    private float movespeed;
+
+    [Header("Stamina System")]
+    public float maxStamina = 100f;
+    public float currentStamina;
+    public float staminaDrainRate = 20f;
+    public float staminaRegenRate = 15f;
+    public Slider staminaBar;
+
+    [Header("Exhaustion System")]
+    public float exhaustionDelay = 2f;    
+    private float exhaustionTimer = 0f;    
+    private bool isExhausted = false;       
+
+    [Header("Jumping")]
+    public float jumpForce = 12f;
+    public float jumpCooldown = 0.25f;
+    public float airMultiplier = 0.4f;
+    bool readyToJump;
+
+    [Header("Keybinds")]
+    public KeyCode jumpKey = KeyCode.Space;
+    public KeyCode sprintKey = KeyCode.LeftShift;
 
     [Header("Ground Check")]
-    public float playerHeight;
+    public float playerHeight = 2f;
     public LayerMask whatIsGround;
     bool grounded;
 
@@ -20,23 +43,38 @@ public class PlayerMovement : MonoBehaviour
     float verticalInput;
 
     Vector3 moveDirection;
-
     Rigidbody rb;
+
+    public MovementState state;
+    public enum MovementState
+    {
+        walking,
+        sprinting,
+        air
+    }
 
     private void Start()
     {
         rb = GetComponent<Rigidbody>();
         rb.freezeRotation = true;
+        readyToJump = true;
+
+        currentStamina = maxStamina;
+        if (staminaBar != null)
+        {
+            staminaBar.maxValue = maxStamina;
+            staminaBar.value = currentStamina;
+        }
     }
 
     private void Update()
     {
-        //ground check
         grounded = Physics.Raycast(transform.position, Vector3.down, playerHeight * 0.5f + 0.2f, whatIsGround);
 
         MyInput();
+        StateHandler();
+        UpdateStamina();
 
-        //handle Drag
         if (grounded)
             rb.linearDamping = groundDrag;
         else
@@ -52,12 +90,93 @@ public class PlayerMovement : MonoBehaviour
     {
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
+
+        if (Input.GetKey(jumpKey) && readyToJump && grounded)
+        {
+            readyToJump = false;
+            Jump();
+            Invoke(nameof(ResetJump), jumpCooldown);
+        }
+    }
+
+    private void StateHandler()
+    {
+        bool isMoving = horizontalInput != 0 || verticalInput != 0;
+
+        if (grounded && Input.GetKey(sprintKey) && !isExhausted && isMoving && currentStamina > 0)
+        {
+            state = MovementState.sprinting;
+            movespeed = sprintSpeed;
+        }
+        else if (grounded)
+        {
+            state = MovementState.walking;
+            movespeed = walkSpeed;
+        }
+        else
+        {
+            state = MovementState.air;
+        }
+    }
+
+    private void UpdateStamina()
+    {
+        if (state == MovementState.sprinting)
+        {
+            currentStamina -= staminaDrainRate * Time.deltaTime;
+
+            if (currentStamina <= 0)
+            {
+                isExhausted = true;
+                exhaustionTimer = exhaustionDelay;
+            }
+        }
+        else
+        {
+            if (isExhausted)
+            {
+                exhaustionTimer -= Time.deltaTime;
+                if (exhaustionTimer <= 0)
+                {
+                    isExhausted = false; 
+                }
+            }
+            else
+            {
+                currentStamina += staminaRegenRate * Time.deltaTime;
+            }
+        }
+
+        currentStamina = Mathf.Clamp(currentStamina, 0, maxStamina);
+
+        if (staminaBar != null)
+        {
+            staminaBar.value = currentStamina;
+        }
     }
 
     private void MovePlayer()
     {
         moveDirection = orientation.forward * verticalInput + orientation.right * horizontalInput;
 
-        rb.AddForce(moveDirection.normalized * movespeed * 10f, ForceMode.Force);
+        if (grounded)
+        {
+            rb.AddForce(moveDirection.normalized * movespeed * 10f, ForceMode.Force);
+        }
+        else if (!grounded)
+        {
+            rb.AddForce(moveDirection.normalized * movespeed * 10f * airMultiplier, ForceMode.Force);
+        }
+    }
+
+    private void Jump()
+    {
+        rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+        rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
+    }
+
+    private void ResetJump()
+    {
+        readyToJump = true;
     }
 }

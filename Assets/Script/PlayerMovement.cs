@@ -7,6 +7,7 @@ public class PlayerMovement : MonoBehaviour
     public float walkSpeed = 7f;
     public float sprintSpeed = 12f;
     public float groundDrag = 5f;
+    public float turnSpeed = 10f;
 
     private float movespeed;
 
@@ -18,14 +19,15 @@ public class PlayerMovement : MonoBehaviour
     public Slider staminaBar;
 
     [Header("Exhaustion System")]
-    public float exhaustionDelay = 2f;    
-    private float exhaustionTimer = 0f;    
-    private bool isExhausted = false;       
+    public float exhaustionDelay = 2f;
+    private float exhaustionTimer = 0f;
+    private bool isExhausted = false;
 
     [Header("Jumping")]
     public float jumpForce = 12f;
     public float jumpCooldown = 0.25f;
     public float airMultiplier = 0.4f;
+    public float jumpStaminaCost = 20f;
     bool readyToJump;
 
     [Header("Keybinds")]
@@ -36,8 +38,6 @@ public class PlayerMovement : MonoBehaviour
     public float playerHeight = 2f;
     public LayerMask whatIsGround;
     bool grounded;
-
-    public Transform orientation;
 
     float horizontalInput;
     float verticalInput;
@@ -84,6 +84,7 @@ public class PlayerMovement : MonoBehaviour
     private void FixedUpdate()
     {
         MovePlayer();
+        RotatePlayer();
     }
 
     private void MyInput()
@@ -91,7 +92,7 @@ public class PlayerMovement : MonoBehaviour
         horizontalInput = Input.GetAxisRaw("Horizontal");
         verticalInput = Input.GetAxisRaw("Vertical");
 
-        if (Input.GetKey(jumpKey) && readyToJump && grounded)
+        if (Input.GetKey(jumpKey) && readyToJump && grounded && !isExhausted && currentStamina >= jumpStaminaCost)
         {
             readyToJump = false;
             Jump();
@@ -124,12 +125,7 @@ public class PlayerMovement : MonoBehaviour
         if (state == MovementState.sprinting)
         {
             currentStamina -= staminaDrainRate * Time.deltaTime;
-
-            if (currentStamina <= 0)
-            {
-                isExhausted = true;
-                exhaustionTimer = exhaustionDelay;
-            }
+            CheckExhaustion();
         }
         else
         {
@@ -138,7 +134,7 @@ public class PlayerMovement : MonoBehaviour
                 exhaustionTimer -= Time.deltaTime;
                 if (exhaustionTimer <= 0)
                 {
-                    isExhausted = false; 
+                    isExhausted = false;
                 }
             }
             else
@@ -154,23 +150,44 @@ public class PlayerMovement : MonoBehaviour
             staminaBar.value = currentStamina;
         }
     }
+    private void CheckExhaustion()
+    {
+        if (currentStamina <= 0)
+        {
+            currentStamina = 0;
+            isExhausted = true;
+            exhaustionTimer = exhaustionDelay;
+        }
+    }
 
     private void MovePlayer()
     {
-        moveDirection = orientation.forward * verticalInput + orientation.right * horizontalInput;
+        moveDirection = new Vector3(horizontalInput, 0f, verticalInput).normalized;
 
         if (grounded)
         {
-            rb.AddForce(moveDirection.normalized * movespeed * 10f, ForceMode.Force);
+            rb.AddForce(moveDirection * movespeed * 10f, ForceMode.Force);
         }
         else if (!grounded)
         {
-            rb.AddForce(moveDirection.normalized * movespeed * 10f * airMultiplier, ForceMode.Force);
+            rb.AddForce(moveDirection * movespeed * 10f * airMultiplier, ForceMode.Force);
+        }
+    }
+
+    private void RotatePlayer()
+    {
+        if (moveDirection != Vector3.zero)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(moveDirection, Vector3.up);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, turnSpeed * Time.fixedDeltaTime);
         }
     }
 
     private void Jump()
     {
+        currentStamina -= jumpStaminaCost;
+        CheckExhaustion();
+
         rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
         rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
     }

@@ -4,18 +4,26 @@ using UnityEngine.UI;
 
 public class TimerManager : MonoBehaviour
 {
-    [Header("Timer Settings")]
-    public float timeRemaining = 60f;
-    public bool timerIsRunning = false;
+    [Header("Time Settings")]
+    public float startHour = 8f;
+    public float endHour = 12f;
+    public float timeMultiplier = 60f;
+
+    private float currentTimeInSeconds;
+    private float endTimeInSeconds;
+    private bool timerIsRunning = false;
 
     [Header("UI References")]
-    public TextMeshProUGUI timeText; 
+    public TextMeshProUGUI clockText;
 
     [Header("Manager References")]
-    public GameOverManager gameOverManager; 
+    public GameOverManager gameOverManager;
 
     private void Start()
     {
+        currentTimeInSeconds = startHour * 3600f;
+        endTimeInSeconds = endHour * 3600f;
+
         timerIsRunning = true;
     }
 
@@ -23,15 +31,15 @@ public class TimerManager : MonoBehaviour
     {
         if (timerIsRunning)
         {
-            if (timeRemaining > 0)
+            if (currentTimeInSeconds < endTimeInSeconds)
             {
-                timeRemaining -= Time.deltaTime;
-                DisplayTime(timeRemaining);
+                currentTimeInSeconds += Time.deltaTime * timeMultiplier;
+                DisplayTime(currentTimeInSeconds);
             }
             else
             {
-                Debug.Log("Time has run out!");
-                timeRemaining = 0;
+                currentTimeInSeconds = endTimeInSeconds;
+                DisplayTime(currentTimeInSeconds);
                 timerIsRunning = false;
 
                 if (gameOverManager != null)
@@ -42,13 +50,16 @@ public class TimerManager : MonoBehaviour
         }
     }
 
-    void DisplayTime(float timeToDisplay)
+    void DisplayTime(float timeInSeconds)
     {
-        if (timeToDisplay < 0) timeToDisplay = 0;
+        int hours = Mathf.FloorToInt(timeInSeconds / 3600);
+        int minutes = Mathf.FloorToInt((timeInSeconds % 3600) / 60);
+        int seconds = Mathf.FloorToInt(timeInSeconds % 60);
+        string dayPart = hours >= 12 ? "PM" : "AM";
 
-        float minutes = Mathf.FloorToInt(timeToDisplay / 60);
-        float seconds = Mathf.FloorToInt(timeToDisplay % 60);
-
-        timeText.text = string.Format("{0:00}:{1:00}", minutes, seconds);
+        int displayHours = hours;
+        if (hours > 12) displayHours -= 12;
+        if (hours == 0) displayHours = 12;
+        clockText.text = string.Format("{0:00}:{1:00}:{2:00} {3}", displayHours, minutes, seconds, dayPart);
     }
 }

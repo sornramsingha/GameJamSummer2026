@@ -8,6 +8,7 @@ public class PlayerMovement : MonoBehaviour
     public float sprintSpeed = 12f;
     public float groundDrag = 5f;
     public float turnSpeed = 10f;
+    public float speedMultiplier = 1f;
 
     private float movespeed;
 
@@ -166,12 +167,24 @@ public class PlayerMovement : MonoBehaviour
 
         if (grounded)
         {
-            rb.AddForce(moveDirection * movespeed * 10f, ForceMode.Force);
+            rb.AddForce(moveDirection * movespeed * speedMultiplier * 10f, ForceMode.Force);
         }
         else if (!grounded)
         {
-            rb.AddForce(moveDirection * movespeed * 10f * airMultiplier, ForceMode.Force);
+            rb.AddForce(moveDirection * movespeed * speedMultiplier * 10f * airMultiplier, ForceMode.Force);
         }
+    }
+    public void ApplyTemporarySlow(float multiplier, float duration)
+    {
+        StopAllCoroutines();
+        StartCoroutine(SlowRoutine(multiplier, duration));
+    }
+
+    private System.Collections.IEnumerator SlowRoutine(float multiplier, float duration)
+    {
+        speedMultiplier = multiplier;
+        yield return new WaitForSeconds(duration);
+        speedMultiplier = 1f;
     }
 
     private void RotatePlayer()
